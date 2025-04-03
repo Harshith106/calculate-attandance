@@ -87,5 +87,13 @@ USER appuser
 # Pre-install ChromeDriver
 RUN python chromedriver_installer.py
 
-# Run the application
-CMD ["/app/venv/bin/gunicorn", "--bind", "0.0.0.0:8080", "--log-level", "debug", "app:app"]
+# Run the application with optimized settings
+CMD ["/app/venv/bin/gunicorn", \
+     "--bind", "0.0.0.0:8080", \
+     "--log-level", "debug", \
+     "--timeout", "120", \
+     "--workers", "1", \
+     "--threads", "2", \
+     "--max-requests", "10", \
+     "--max-requests-jitter", "3", \
+     "app:app"]

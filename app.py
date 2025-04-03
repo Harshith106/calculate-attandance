@@ -35,8 +35,8 @@ limiter = Limiter(
     storage_options={"ignore_errors": True}
 )
 
-# Thread pool for selenium operations
-executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+# Thread pool for selenium operations - reduce max_workers to save memory
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 # Cleanup function
 def cleanup():
@@ -57,7 +57,29 @@ def create_driver():
             options.add_argument("--disable-dev-shm-usage")
             options.add_argument("--ignore-certificate-errors")
             options.add_argument("--log-level=3")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-infobars")
+            options.add_argument("--disable-notifications")
+            options.add_argument("--disable-popup-blocking")
+            # Memory optimization
+            options.add_argument("--js-flags=--max_old_space_size=128")
+            options.add_argument("--disable-features=site-per-process")
+            options.add_argument("--single-process")
+            options.add_argument("--disable-application-cache")
             options.add_experimental_option("excludeSwitches", ["enable-logging"])
+            # Disable images to save memory
+            prefs = {
+                "profile.managed_default_content_settings.images": 2,
+                "profile.default_content_setting_values.notifications": 2,
+                "profile.managed_default_content_settings.stylesheets": 2,
+                "profile.managed_default_content_settings.cookies": 2,
+                "profile.managed_default_content_settings.javascript": 1,
+                "profile.managed_default_content_settings.plugins": 2,
+                "profile.managed_default_content_settings.popups": 2,
+                "profile.managed_default_content_settings.geolocation": 2,
+                "profile.managed_default_content_settings.media_stream": 2,
+            }
+            options.add_experimental_option("prefs", prefs)
 
             chrome_binary = os.environ.get('CHROME_BIN')
             if chrome_binary:
@@ -139,39 +161,77 @@ def create_driver():
 
 def scrape_data(driver, username, password):
     try:
+        # Set page load timeout to prevent hanging
+        driver.set_page_load_timeout(30)
+
+        # Set script timeout
+        driver.set_script_timeout(30)
+
+        # Reduce wait time to prevent timeouts
+        short_wait = 5
+        medium_wait = 10
+
+        # Clear cookies and cache before starting
+        driver.delete_all_cookies()
+
+        # Navigate to the site
+        app.logger.info("Navigating to website")
         driver.get("http://mitsims.in/")
-        StudentLink = WebDriverWait(driver, 10).until(
+
+        # Click on student link
+        app.logger.info("Clicking student link")
+        StudentLink = WebDriverWait(driver, short_wait).until(
             EC.element_to_be_clickable((By.XPATH, "//nav//a[@id='studentLink']"))
         )
         StudentLink.click()
 
-        userEle = WebDriverWait(driver, 10).until(
+        # Enter username
+        app.logger.info("Entering username")
+        userEle = WebDriverWait(driver, short_wait).until(
             EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputStuId']"))
         )
+        userEle.clear()
         userEle.send_keys(username)
 
-        passEle = WebDriverWait(driver, 10).until(
+        # Enter password
+        app.logger.info("Entering password")
+        passEle = WebDriverWait(driver, short_wait).until(
             EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputPassword']"))
         )
+        passEle.clear()
         passEle.send_keys(password)
 
-        login_button = WebDriverWait(driver, 10).until(
+        # Click login button
+        app.logger.info("Clicking login button")
+        login_button = WebDriverWait(driver, short_wait).until(
             EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//button[@id='studentSubmitButton']"))
         )
         login_button.click()
 
+        # Define XPaths - keeping these exactly the same as requested
         attendance_percentage_xpath = "//fieldset[contains(@class, 'bottom-border') and not(contains(@class, 'bottom-border-header'))]//div[contains(@class,'x-column-inner')]/div[contains(@class,'x-field')][5]//span"
         course_name_xpath = "//fieldset[contains(@class, 'bottom-border') and not(contains(@class, 'bottom-border-header'))]//div[contains(@class,'x-column-inner')]/div[contains(@class,'x-field')][2]//span"
 
+        # Initialize lists
         attandance_percentages = []
         course_names = []
 
-        wait = WebDriverWait(driver, 10)
+        # Wait for elements to be present
+        app.logger.info("Waiting for attendance data to load")
+        wait = WebDriverWait(driver, medium_wait)
+
+        # Get percentage elements
+        app.logger.info("Getting percentage elements")
         percentage_elements = wait.until(
             EC.presence_of_all_elements_located((By.XPATH, attendance_percentage_xpath)))
+
+        # Get course elements
+        app.logger.info("Getting course elements")
         course_elements = wait.until(
             EC.presence_of_all_elements_located((By.XPATH, course_name_xpath)))
 
+        # Process percentage elements
+        app.logger.info(f"Processing {len(percentage_elements)} percentage elements")
         for element in percentage_elements:
             text_content = element.text.strip()
             try:
@@ -180,30 +240,60 @@ def scrape_data(driver, username, password):
             except ValueError:
                 attandance_percentages.append(0)
 
+        # Process course elements
+        app.logger.info(f"Processing {len(course_elements)} course elements")
         for element in course_elements:
             course_names.append(element.text.strip())
 
+        # Check if we have data
         if not attandance_percentages:
+            app.logger.warning("No attendance percentages found")
             return None
 
+        # Calculate final percentage
         final_percent = round(sum(attandance_percentages) / len(attandance_percentages), 2)
+        app.logger.info(f"Final attendance percentage: {final_percent}%")
+
+        # Return the result
         return {
             'courses': course_names,
             'percentages': attandance_percentages,
             'attendance': final_percent
         }
+    except TimeoutException as te:
+        app.logger.error(f"Timeout during scraping: {str(te)}")
+        return None
     except Exception as e:
         app.logger.error(f"Error during scraping: {str(e)}")
         return None
     finally:
-        driver.quit()
+        # Make sure to quit the driver to free resources
+        try:
+            driver.quit()
+        except Exception as e:
+            app.logger.warning(f"Error quitting driver: {str(e)}")
 
 def get_attendance_data(username, password):
+    app.logger.info(f"Starting attendance data retrieval for user: {username}")
+
+    # Create a future to run the scraping in a separate thread
     future = executor.submit(lambda: scrape_data(create_driver(), username, password))
+
     try:
-        return future.result(timeout=60)  # 1 minute timeout
+        # Reduce timeout to 45 seconds to prevent worker timeout
+        result = future.result(timeout=45)
+        if result:
+            app.logger.info("Successfully retrieved attendance data")
+        else:
+            app.logger.warning("Failed to retrieve attendance data")
+        return result
     except concurrent.futures.TimeoutError:
-        app.logger.error("Scraping operation timed out")
+        app.logger.error("Scraping operation timed out after 45 seconds")
+        # Try to cancel the future to free resources
+        future.cancel()
+        return None
+    except Exception as e:
+        app.logger.error(f"Unexpected error in get_attendance_data: {str(e)}")
         return None
 
 @app.route('/')
