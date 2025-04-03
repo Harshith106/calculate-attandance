@@ -61,8 +61,11 @@ ENV PATH="/app/venv/bin:$PATH"
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy only necessary files to reduce image size
+COPY app.py .
+COPY chromedriver_installer.py .
+COPY templates/ ./templates/
+COPY requirements.txt .
 
 # Create and set permissions for webdriver directory
 RUN mkdir -p /tmp/webdriver \
@@ -87,6 +90,9 @@ USER appuser
 # Pre-install ChromeDriver
 RUN python chromedriver_installer.py
 
+# Set memory limit for the container
+ENV GUNICORN_CMD_ARGS="--limit-request-line 4094 --limit-request-fields 100 --limit-request-field-size 8190"
+
 # Run the application with optimized settings
 CMD ["/app/venv/bin/gunicorn", \
      "--bind", "0.0.0.0:8080", \
@@ -96,4 +102,6 @@ CMD ["/app/venv/bin/gunicorn", \
      "--threads", "2", \
      "--max-requests", "10", \
      "--max-requests-jitter", "3", \
+     "--worker-tmp-dir", "/dev/shm", \
+     "--worker-class", "sync", \
      "app:app"]

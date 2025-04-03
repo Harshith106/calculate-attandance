@@ -161,15 +161,14 @@ def create_driver():
 
 def scrape_data(driver, username, password):
     try:
-        # Set page load timeout to prevent hanging
-        driver.set_page_load_timeout(30)
+        # Set very short timeouts to prevent hanging
+        driver.set_page_load_timeout(20)
+        driver.set_script_timeout(20)
 
-        # Set script timeout
-        driver.set_script_timeout(30)
-
-        # Reduce wait time to prevent timeouts
-        short_wait = 5
-        medium_wait = 10
+        # Use very short wait times
+        short_wait = 3
+        medium_wait = 5
+        long_wait = 10
 
         # Clear cookies and cache before starting
         driver.delete_all_cookies()
@@ -180,33 +179,57 @@ def scrape_data(driver, username, password):
 
         # Click on student link
         app.logger.info("Clicking student link")
-        StudentLink = WebDriverWait(driver, short_wait).until(
-            EC.element_to_be_clickable((By.XPATH, "//nav//a[@id='studentLink']"))
-        )
-        StudentLink.click()
+        try:
+            StudentLink = WebDriverWait(driver, short_wait).until(
+                EC.element_to_be_clickable((By.XPATH, "//nav//a[@id='studentLink']"))
+            )
+            StudentLink.click()
+        except Exception as e:
+            app.logger.warning(f"Error clicking student link: {str(e)}")
+            # Try JavaScript click as fallback
+            driver.execute_script("document.querySelector('#studentLink').click();")
 
         # Enter username
         app.logger.info("Entering username")
-        userEle = WebDriverWait(driver, short_wait).until(
-            EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputStuId']"))
-        )
-        userEle.clear()
-        userEle.send_keys(username)
+        try:
+            userEle = WebDriverWait(driver, short_wait).until(
+                EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputStuId']"))
+            )
+            userEle.clear()
+            userEle.send_keys(username)
+        except Exception as e:
+            app.logger.warning(f"Error entering username: {str(e)}")
+            # Try JavaScript as fallback
+            driver.execute_script(f"document.querySelector('#inputStuId').value = '{username}';")
 
         # Enter password
         app.logger.info("Entering password")
-        passEle = WebDriverWait(driver, short_wait).until(
-            EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputPassword']"))
-        )
-        passEle.clear()
-        passEle.send_keys(password)
+        try:
+            passEle = WebDriverWait(driver, short_wait).until(
+                EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputPassword']"))
+            )
+            passEle.clear()
+            passEle.send_keys(password)
+        except Exception as e:
+            app.logger.warning(f"Error entering password: {str(e)}")
+            # Try JavaScript as fallback
+            driver.execute_script(f"document.querySelector('#inputPassword').value = '{password}';")
 
         # Click login button
         app.logger.info("Clicking login button")
-        login_button = WebDriverWait(driver, short_wait).until(
-            EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//button[@id='studentSubmitButton']"))
-        )
-        login_button.click()
+        try:
+            login_button = WebDriverWait(driver, short_wait).until(
+                EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//button[@id='studentSubmitButton']"))
+            )
+            login_button.click()
+        except Exception as e:
+            app.logger.warning(f"Error clicking login button: {str(e)}")
+            # Try JavaScript click as fallback
+            driver.execute_script("document.querySelector('#studentSubmitButton').click();")
+
+        # Wait for page to load after login
+        app.logger.info("Waiting for page to load after login")
+        time.sleep(3)  # Give the page some time to load
 
         # Define XPaths - keeping these exactly the same as requested
         attendance_percentage_xpath = "//fieldset[contains(@class, 'bottom-border') and not(contains(@class, 'bottom-border-header'))]//div[contains(@class,'x-column-inner')]/div[contains(@class,'x-field')][5]//span"
@@ -216,34 +239,69 @@ def scrape_data(driver, username, password):
         attandance_percentages = []
         course_names = []
 
-        # Wait for elements to be present
-        app.logger.info("Waiting for attendance data to load")
-        wait = WebDriverWait(driver, medium_wait)
+        # Try to get data using JavaScript first (more memory efficient)
+        app.logger.info("Trying to get attendance data using JavaScript")
+        try:
+            # Use JavaScript to extract data
+            js_percentage_script = """
+            return Array.from(document.querySelectorAll("fieldset[class*='bottom-border']:not([class*='bottom-border-header']) div[class*='x-column-inner'] div[class*='x-field']:nth-child(5) span")).map(el => el.textContent.trim());
+            """
+            js_course_script = """
+            return Array.from(document.querySelectorAll("fieldset[class*='bottom-border']:not([class*='bottom-border-header']) div[class*='x-column-inner'] div[class*='x-field']:nth-child(2) span")).map(el => el.textContent.trim());
+            """
 
-        # Get percentage elements
-        app.logger.info("Getting percentage elements")
-        percentage_elements = wait.until(
-            EC.presence_of_all_elements_located((By.XPATH, attendance_percentage_xpath)))
+            percentage_texts = driver.execute_script(js_percentage_script)
+            course_texts = driver.execute_script(js_course_script)
 
-        # Get course elements
-        app.logger.info("Getting course elements")
-        course_elements = wait.until(
-            EC.presence_of_all_elements_located((By.XPATH, course_name_xpath)))
+            app.logger.info(f"Got {len(percentage_texts)} percentages and {len(course_texts)} courses using JavaScript")
 
-        # Process percentage elements
-        app.logger.info(f"Processing {len(percentage_elements)} percentage elements")
-        for element in percentage_elements:
-            text_content = element.text.strip()
+            # Process percentage elements
+            for text in percentage_texts:
+                try:
+                    percent_val = float(text)
+                    attandance_percentages.append(percent_val)
+                except ValueError:
+                    attandance_percentages.append(0)
+
+            # Process course elements
+            for text in course_texts:
+                course_names.append(text)
+
+        except Exception as js_error:
+            app.logger.warning(f"JavaScript extraction failed: {str(js_error)}")
+
+            # Fallback to Selenium WebDriver method
+            app.logger.info("Falling back to WebDriver method")
             try:
-                percent_val = float(text_content)
-                attandance_percentages.append(percent_val)
-            except ValueError:
-                attandance_percentages.append(0)
+                # Wait for elements to be present with a longer timeout
+                wait = WebDriverWait(driver, long_wait)
 
-        # Process course elements
-        app.logger.info(f"Processing {len(course_elements)} course elements")
-        for element in course_elements:
-            course_names.append(element.text.strip())
+                # Get percentage elements
+                app.logger.info("Getting percentage elements")
+                percentage_elements = wait.until(
+                    EC.presence_of_all_elements_located((By.XPATH, attendance_percentage_xpath)))
+
+                # Get course elements
+                app.logger.info("Getting course elements")
+                course_elements = wait.until(
+                    EC.presence_of_all_elements_located((By.XPATH, course_name_xpath)))
+
+                # Process percentage elements
+                app.logger.info(f"Processing {len(percentage_elements)} percentage elements")
+                for element in percentage_elements:
+                    text_content = element.text.strip()
+                    try:
+                        percent_val = float(text_content)
+                        attandance_percentages.append(percent_val)
+                    except ValueError:
+                        attandance_percentages.append(0)
+
+                # Process course elements
+                app.logger.info(f"Processing {len(course_elements)} course elements")
+                for element in course_elements:
+                    course_names.append(element.text.strip())
+            except Exception as selenium_error:
+                app.logger.error(f"Selenium extraction failed: {str(selenium_error)}")
 
         # Check if we have data
         if not attandance_percentages:
@@ -280,20 +338,26 @@ def get_attendance_data(username, password):
     future = executor.submit(lambda: scrape_data(create_driver(), username, password))
 
     try:
-        # Reduce timeout to 45 seconds to prevent worker timeout
-        result = future.result(timeout=45)
+        # Reduce timeout to 30 seconds to prevent worker timeout
+        result = future.result(timeout=30)
         if result:
             app.logger.info("Successfully retrieved attendance data")
         else:
             app.logger.warning("Failed to retrieve attendance data")
         return result
     except concurrent.futures.TimeoutError:
-        app.logger.error("Scraping operation timed out after 45 seconds")
+        app.logger.error("Scraping operation timed out after 30 seconds")
         # Try to cancel the future to free resources
         future.cancel()
+        # Force garbage collection to free memory
+        import gc
+        gc.collect()
         return None
     except Exception as e:
         app.logger.error(f"Unexpected error in get_attendance_data: {str(e)}")
+        # Force garbage collection to free memory
+        import gc
+        gc.collect()
         return None
 
 @app.route('/')
@@ -342,4 +406,4 @@ if __name__ == '__main__':
     # Use environment variables for host and port if available
     port = int(os.environ.get('PORT', 8080))  # Change default to 8080
     debug = os.environ.get('FLASK_ENV') != 'production'  # Safer debug mode check
-    app.run(host='0.0.0.0', port=port, threaded=True, debug=debug)
+    app.run(host='0.0.0.0', port=port)

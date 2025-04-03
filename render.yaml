@@ -7,6 +7,11 @@ services:
     autoscaling:
       min: 1
       max: 1
+    # Increase memory limit
+    scaling:
+      minInstances: 1
+      maxInstances: 1
+      targetMemoryPercent: 80
     healthCheckPath: /health
     buildCommand: chmod +x ./build.sh && ./build.sh
     startCommand: /app/venv/bin/gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1 --threads 2 --max-requests 10 --max-requests-jitter 3
