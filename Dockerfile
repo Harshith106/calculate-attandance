@@ -91,7 +91,7 @@ USER appuser
 RUN python chromedriver_installer.py
 
 # Set memory limit for the container
-ENV GUNICORN_CMD_ARGS="--limit-request-line 4094 --limit-request-fields 100 --limit-request-field-size 8190"
+ENV GUNICORN_CMD_ARGS="--limit-request-line 4094"
 
 # Run the application with optimized settings
 CMD ["/app/venv/bin/gunicorn", \
@@ -100,8 +100,4 @@ CMD ["/app/venv/bin/gunicorn", \
      "--timeout", "120", \
      "--workers", "1", \
      "--threads", "2", \
-     "--max-requests", "10", \
-     "--max-requests-jitter", "3", \
-     "--worker-tmp-dir", "/dev/shm", \
-     "--worker-class", "sync", \
      "app:app"]
