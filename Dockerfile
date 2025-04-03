@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libxshmfence1 \
+    python3-venv \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -51,8 +52,15 @@ RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d. -f1) \
     && chmod +x /usr/local/bin/chromedriver \
     && rm chromedriver_linux64.zip
 
+# Create a non-root user to run the application
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
+
 # Set up working directory
 WORKDIR /app
+
+# Create and activate virtual environment
+RUN python -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
@@ -60,6 +68,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
+
+# Create and set permissions for webdriver directory
+RUN mkdir -p /tmp/webdriver \
+    && chown -R appuser:appuser /tmp/webdriver \
+    && chmod -R 755 /tmp/webdriver
+
+# Set permissions for the application directory
+RUN chown -R appuser:appuser /app
 
 # Expose port
 EXPOSE 8080
@@ -70,9 +86,11 @@ ENV CHROME_BIN=/usr/bin/google-chrome-stable
 ENV PYTHONPATH=/app
 ENV WEBDRIVER_MANAGER_PATH=/tmp/webdriver
 
+# Switch to non-root user
+USER appuser
+
 # Pre-install ChromeDriver
-RUN mkdir -p /tmp/webdriver
 RUN python chromedriver_installer.py
 
 # Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--log-level", "debug", "app:app"]
+CMD ["/app/venv/bin/gunicorn", "--bind", "0.0.0.0:8080", "--log-level", "debug", "app:app"]
