@@ -5,6 +5,8 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /health
+    buildCommand: chmod +x ./build.sh && ./build.sh
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: FLASK_ENV
         value: production
@@ -12,4 +14,7 @@ services:
         value: /usr/bin/google-chrome-stable
       - key: PORT
         value: "8080"
-
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: WEBDRIVER_MANAGER_PATH
+        value: "/tmp/webdriver"

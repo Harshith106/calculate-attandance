@@ -4,3 +4,4 @@ flask-limiter==3.5.0
 selenium==4.15.2
 webdriver-manager==4.0.1
 gunicorn==21.2.0
+requests==2.31.0

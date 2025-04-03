@@ -43,6 +43,14 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Install ChromeDriver manually
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d. -f1) \
+    && CHROMEDRIVER_VERSION=$(wget -qO- https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION) \
+    && wget -q https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip \
+    && unzip chromedriver_linux64.zip -d /usr/local/bin \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm chromedriver_linux64.zip
+
 # Set up working directory
 WORKDIR /app
 
@@ -60,6 +68,11 @@ EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
 ENV CHROME_BIN=/usr/bin/google-chrome-stable
 ENV PYTHONPATH=/app
+ENV WEBDRIVER_MANAGER_PATH=/tmp/webdriver
+
+# Pre-install ChromeDriver
+RUN mkdir -p /tmp/webdriver
+RUN python chromedriver_installer.py
 
 # Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--log-level", "debug", "app:app"]

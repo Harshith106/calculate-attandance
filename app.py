@@ -45,7 +45,7 @@ atexit.register(cleanup)
 def create_driver():
     max_retries = 3
     retry_count = 0
-    
+
     while retry_count < max_retries:
         try:
             options = webdriver.ChromeOptions()
@@ -61,14 +61,78 @@ def create_driver():
             if chrome_binary:
                 options.binary_location = chrome_binary
 
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=options)
-            return driver
+            # Try different methods to get a working ChromeDriver
+            try:
+                # Method 1: Try our custom ChromeDriver installer
+                try:
+                    from chromedriver_installer import install_chromedriver
+                    driver_path = install_chromedriver()
+                    if driver_path and os.path.exists(driver_path):
+                        app.logger.info(f"Using custom installed ChromeDriver at: {driver_path}")
+                        service = Service(driver_path)
+                        driver = webdriver.Chrome(service=service, options=options)
+                        return driver
+                except Exception as custom_err:
+                    app.logger.warning(f"Custom ChromeDriver installer failed: {str(custom_err)}")
+
+                # Method 2: Try ChromeDriverManager
+                driver_path = ChromeDriverManager().install()
+                app.logger.info(f"ChromeDriverManager installed driver at: {driver_path}")
+
+                # Check if it's the THIRD_PARTY_NOTICES file
+                if "THIRD_PARTY_NOTICES" in driver_path:
+                    driver_dir = os.path.dirname(driver_path)
+                    # Look for the actual chromedriver executable in the same directory
+                    for root, _, files in os.walk(os.path.dirname(driver_dir)):
+                        for file in files:
+                            if file.startswith("chromedriver") and not file.endswith(".zip") and "THIRD_PARTY_NOTICES" not in file:
+                                driver_path = os.path.join(root, file)
+                                if os.path.exists(driver_path):
+                                    app.logger.info(f"Found actual ChromeDriver at: {driver_path}")
+                                    # Make executable on Linux
+                                    if os.name != 'nt':
+                                        os.chmod(driver_path, 0o755)
+                                    break
+
+                # Try to use the driver path
+                service = Service(driver_path)
+                driver = webdriver.Chrome(service=service, options=options)
+                app.logger.info("Successfully created Chrome driver")
+                return driver
+
+            except Exception as driver_err:
+                app.logger.warning(f"Standard ChromeDriver methods failed: {str(driver_err)}")
+
+                # Method 3: Try direct Chrome driver
+                try:
+                    app.logger.info("Trying direct Chrome driver")
+                    driver = webdriver.Chrome(options=options)
+                    return driver
+                except Exception as direct_err:
+                    app.logger.warning(f"Direct Chrome driver failed: {str(direct_err)}")
+
+                # Method 4: Try common locations on Linux
+                if os.name != 'nt':  # Linux
+                    for path in ["/usr/bin/chromedriver", "/usr/local/bin/chromedriver"]:
+                        if os.path.exists(path):
+                            try:
+                                app.logger.info(f"Trying chromedriver at {path}")
+                                service = Service(path)
+                                driver = webdriver.Chrome(service=service, options=options)
+                                return driver
+                            except Exception as path_err:
+                                app.logger.warning(f"Failed with path {path}: {str(path_err)}")
+
+                raise Exception("All ChromeDriver methods failed")
+
         except Exception as e:
             retry_count += 1
             app.logger.error(f"Driver creation attempt {retry_count} failed: {str(e)}")
+
             if retry_count == max_retries:
                 raise
+
+            # Wait before retrying
             time.sleep(1)
 
 def scrape_data(driver, username, password):
