@@ -4,9 +4,12 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: FLASK_ENV
         value: production
       - key: CHROME_BIN
         value: /usr/bin/google-chrome-stable
+      - key: PORT
+        value: "8080"
+

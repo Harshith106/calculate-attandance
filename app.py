@@ -13,6 +13,7 @@ import concurrent.futures
 import atexit
 import os
 import logging
+import time
 
 app = Flask(__name__)
 
@@ -42,34 +43,33 @@ def cleanup():
 atexit.register(cleanup)
 
 def create_driver():
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--ignore-certificate-errors")
-    options.add_argument("--log-level=3")
-    options.add_experimental_option("excludeSwitches", ["enable-logging"])
-
-    # Use environment variable for Chrome binary if available
-    chrome_binary = os.environ.get('CHROME_BIN')
-    if chrome_binary:
-        options.binary_location = chrome_binary
-
-    try:
-        # First try with ChromeDriverManager
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
-    except Exception as e:
-        app.logger.warning(f"ChromeDriverManager failed: {str(e)}")
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
         try:
-            # Fallback to direct Chrome driver
-            driver = webdriver.Chrome(options=options)
-        except Exception as e2:
-            app.logger.error(f"All Chrome driver methods failed: {str(e2)}")
-            raise
+            options = webdriver.ChromeOptions()
+            options.add_argument("--headless")
+            options.add_argument("--disable-gpu")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--ignore-certificate-errors")
+            options.add_argument("--log-level=3")
+            options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
-    return driver
+            chrome_binary = os.environ.get('CHROME_BIN')
+            if chrome_binary:
+                options.binary_location = chrome_binary
+
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+            return driver
+        except Exception as e:
+            retry_count += 1
+            app.logger.error(f"Driver creation attempt {retry_count} failed: {str(e)}")
+            if retry_count == max_retries:
+                raise
+            time.sleep(1)
 
 def scrape_data(driver, username, password):
     try:
@@ -184,6 +184,6 @@ def catch_all(path):
 
 if __name__ == '__main__':
     # Use environment variables for host and port if available
-    port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_ENV') == 'development'
+    port = int(os.environ.get('PORT', 8080))  # Change default to 8080
+    debug = os.environ.get('FLASK_ENV') != 'production'  # Safer debug mode check
     app.run(host='0.0.0.0', port=port, threaded=True, debug=debug)
