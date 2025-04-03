@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -7,6 +8,7 @@ import os, time, concurrent.futures
 
 # Initialize Flask app and thread pool
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 # XPaths - keeping these exactly the same as requested
@@ -95,6 +97,10 @@ def scrape_data(driver, username, password):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'ok', 'message': 'Service is running'})
 
 @app.route('/get_attendance', methods=['POST'])
 def attendance():
