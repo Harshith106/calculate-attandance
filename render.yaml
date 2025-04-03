@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: attendance-calculator
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: CHROME_BIN
+        value: /usr/bin/google-chrome-stable
