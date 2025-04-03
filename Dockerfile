@@ -44,12 +44,8 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver manually using a fixed version that's known to work
-RUN wget -q https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip \
-    && unzip chromedriver_linux64.zip \
-    && mv chromedriver /usr/local/bin/ \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm chromedriver_linux64.zip
+# We'll use ChromeDriverManager in the application code instead of installing ChromeDriver here
+# This ensures we get the correct version for the installed Chrome
 
 # Create a non-root user to run the application
 RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser

@@ -9,16 +9,11 @@ echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /e
 apt-get update
 apt-get install -y google-chrome-stable
 
-# Install ChromeDriver with a fixed version that's known to work
-wget -q https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip
-unzip chromedriver_linux64.zip
-chmod +x chromedriver
-mv chromedriver /usr/local/bin/
-rm chromedriver_linux64.zip
+# We'll let the application handle ChromeDriver installation
+# This ensures we get the correct version for the installed Chrome
 
-# Print versions for debugging
+# Print Chrome version for debugging
 echo "Chrome version: $(google-chrome --version)"
-echo "ChromeDriver version: $(chromedriver --version 2>/dev/null || echo 'ChromeDriver not found')"
 
 # Create a non-root user if it doesn't exist
 if ! id -u appuser &>/dev/null; then

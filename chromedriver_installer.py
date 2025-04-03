@@ -35,9 +35,23 @@ def get_chrome_version():
 def download_chromedriver(version, install_dir):
     """Download the ChromeDriver for the given Chrome version."""
     try:
-        # Use a fixed ChromeDriver version that's known to work
-        driver_version = "114.0.5735.90"
-        logger.info(f"Using fixed ChromeDriver version: {driver_version}")
+        # Get the latest ChromeDriver version for this Chrome version
+        try:
+            # First try the new Chrome for Testing API format
+            response = requests.get(f"https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_{version}")
+            if response.status_code == 200:
+                driver_version = response.text.strip()
+            else:
+                # Fall back to the old API
+                response = requests.get(f"https://chromedriver.storage.googleapis.com/LATEST_RELEASE_{version}")
+                driver_version = response.text.strip()
+        except Exception as e:
+            logger.warning(f"Error getting specific ChromeDriver version: {e}")
+            # If all else fails, try to get the latest version
+            response = requests.get("https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
+            driver_version = response.text.strip()
+
+        logger.info(f"Using ChromeDriver version: {driver_version} for Chrome {version}")
 
         # Determine the platform
         system = platform.system()
@@ -54,8 +68,14 @@ def download_chromedriver(version, install_dir):
             logger.error(f"Unsupported platform: {system}")
             return None
 
-        # Download the ChromeDriver
-        download_url = f"https://chromedriver.storage.googleapis.com/{driver_version}/chromedriver_{platform_name}.zip"
+        # Check if we should use the new Chrome for Testing URL format
+        if float(driver_version.split('.')[0]) >= 115:
+            # New Chrome for Testing format
+            download_url = f"https://storage.googleapis.com/chrome-for-testing-public/{driver_version}/{platform_name}/chromedriver-{platform_name}.zip"
+        else:
+            # Old format
+            download_url = f"https://chromedriver.storage.googleapis.com/{driver_version}/chromedriver_{platform_name}.zip"
+
         logger.info(f"Downloading ChromeDriver from: {download_url}")
 
         response = requests.get(download_url)
@@ -73,14 +93,35 @@ def download_chromedriver(version, install_dir):
 
         # Extract the zip file
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            file_list = zip_ref.namelist()
+            logger.info(f"Files in zip: {file_list}")
             zip_ref.extractall(install_dir)
 
-        # Make the ChromeDriver executable on Unix-like systems
-        if system != "Windows":
-            chromedriver_path = os.path.join(install_dir, "chromedriver")
-            os.chmod(chromedriver_path, 0o755)
+        # Find the chromedriver executable in the extracted files
+        chromedriver_path = None
+        if float(driver_version.split('.')[0]) >= 115:
+            # New Chrome for Testing format has a different directory structure
+            for root, dirs, files in os.walk(install_dir):
+                for file in files:
+                    if file.startswith("chromedriver") and not file.endswith(".zip"):
+                        chromedriver_path = os.path.join(root, file)
+                        # Make executable on Unix-like systems
+                        if system != "Windows":
+                            os.chmod(chromedriver_path, 0o755)
+                        break
+                if chromedriver_path:
+                    break
         else:
-            chromedriver_path = os.path.join(install_dir, "chromedriver.exe")
+            # Old format
+            if system != "Windows":
+                chromedriver_path = os.path.join(install_dir, "chromedriver")
+                os.chmod(chromedriver_path, 0o755)
+            else:
+                chromedriver_path = os.path.join(install_dir, "chromedriver.exe")
+
+        if not chromedriver_path or not os.path.exists(chromedriver_path):
+            logger.error("ChromeDriver executable not found in the extracted files")
+            return None
 
         # Clean up
         os.remove(zip_path)

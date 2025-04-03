@@ -30,7 +30,9 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",  # Use memory storage to avoid warnings
+    storage_options={"ignore_errors": True}
 )
 
 # Thread pool for selenium operations
