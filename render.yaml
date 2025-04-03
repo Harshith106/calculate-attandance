@@ -14,7 +14,7 @@ services:
       targetMemoryPercent: 80
     healthCheckPath: /health
     buildCommand: chmod +x ./build.sh && ./build.sh
-    startCommand: /app/venv/bin/gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --threads 2
+    startCommand: /app/venv/bin/gunicorn app:app --bind 0.0.0.0:$PORT --timeout 0 --workers 1 --threads 2
     envVars:
       - key: FLASK_ENV
         value: production

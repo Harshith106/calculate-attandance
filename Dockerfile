@@ -34,7 +34,9 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     python3-venv \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # Fix the terminal emulator warning
+    && mkdir -p /usr/share/man/man1
 
 # Install Chrome
 RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
@@ -93,11 +95,11 @@ RUN python chromedriver_installer.py
 # Set memory limit for the container
 ENV GUNICORN_CMD_ARGS="--limit-request-line 4094"
 
-# Run the application with optimized settings
+# Run the application with optimized settings and no timeout
 CMD ["/app/venv/bin/gunicorn", \
      "--bind", "0.0.0.0:8080", \
      "--log-level", "debug", \
-     "--timeout", "300", \
+     "--timeout", "0", \
      "--workers", "1", \
      "--threads", "2", \
      "app:app"]
