@@ -97,7 +97,7 @@ ENV GUNICORN_CMD_ARGS="--limit-request-line 4094"
 CMD ["/app/venv/bin/gunicorn", \
      "--bind", "0.0.0.0:8080", \
      "--log-level", "debug", \
-     "--timeout", "120", \
+     "--timeout", "300", \
      "--workers", "1", \
      "--threads", "2", \
      "app:app"]
