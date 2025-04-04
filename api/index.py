@@ -19,9 +19,9 @@ def cleanup():
     executor.shutdown(wait=False)
 atexit.register(cleanup)
 
-def is_vercel_env():
-    """Check if we're running on Vercel."""
-    return 'VERCEL' in os.environ
+def is_railway_env():
+    """Check if we're running on Railway.app."""
+    return 'RAILWAY_ENVIRONMENT' in os.environ or 'RAILWAY_SERVICE_ID' in os.environ
 
 def create_driver():
     """Create a headless Chrome driver with optimized settings."""
@@ -39,9 +39,9 @@ def create_driver():
         options.add_argument("--disable-application-cache")
         options.add_argument("--js-flags=--max_old_space_size=128")
 
-        # Additional optimizations for Vercel
-        if is_vercel_env():
-            print("Adding Vercel-specific Chrome options")
+        # Additional optimizations for Railway
+        if is_railway_env():
+            print("Adding Railway-specific Chrome options")
             options.add_argument("--disable-software-rasterizer")
             options.add_argument("--disable-dev-shm-usage")
             options.add_argument("--disable-setuid-sandbox")
@@ -72,9 +72,9 @@ def create_driver():
             # Try to create driver without explicit path
             driver = webdriver.Chrome(options=options)
 
-        # Set timeouts - shorter for Vercel
-        page_timeout = 10 if is_vercel_env() else 30
-        script_timeout = 10 if is_vercel_env() else 30
+        # Set timeouts - Railway can handle longer timeouts
+        page_timeout = 30
+        script_timeout = 30
 
         print(f"Setting page_timeout={page_timeout}, script_timeout={script_timeout}")
         driver.set_page_load_timeout(page_timeout)
@@ -87,9 +87,9 @@ def create_driver():
 
 def scrape_data(driver, username, password):
     try:
-        # Reduce all timeouts for Vercel environment
-        wait_time = 5 if is_vercel_env() else 30
-        sleep_time = 3 if is_vercel_env() else 10
+        # Railway can handle longer wait times
+        wait_time = 30
+        sleep_time = 10
 
         print(f"Using wait_time={wait_time}, sleep_time={sleep_time}")
 
@@ -169,8 +169,8 @@ def get_attendance_data(username, password):
     future = executor.submit(lambda: scrape_data(create_driver(), username, password))
 
     try:
-        # Use a shorter timeout for Vercel
-        timeout = 9 if is_vercel_env() else 45  # Vercel has a 10 second limit on free tier
+        # Railway can handle longer timeouts
+        timeout = 120  # 2 minutes should be plenty of time
         print(f"Using timeout={timeout} seconds")
 
         result = future.result(timeout=timeout)
@@ -243,4 +243,5 @@ def attendance():
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=True)

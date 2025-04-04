@@ -19,32 +19,47 @@ A web application that calculates attendance percentages for students by scrapin
 
 ## Deployment Options
 
-### Deployment on Vercel (Recommended)
+### Deployment on Railway.app (Recommended)
 
-This application is configured for easy deployment on Vercel:
+This application is configured for easy deployment on Railway.app:
 
 1. Fork or clone this repository
-2. Connect your GitHub account to Vercel
-3. Create a new project in Vercel
-4. Select your repository
-5. Configure the following environment variables (optional):
-   - `CHROME_BINARY_PATH`: Path to Chrome binary (leave empty for Vercel)
-   - `CHROME_DRIVER_PATH`: Path to ChromeDriver (leave empty for Vercel)
-6. Click "Deploy"
+2. Sign up at [railway.app](https://railway.app/) (free tier available)
+3. Install the Railway CLI (optional):
+   ```
+   npm i -g @railway/cli
+   ```
+4. Login to Railway:
+   ```
+   railway login
+   ```
+5. Create a new project:
+   ```
+   railway init
+   ```
+6. Deploy the application:
+   ```
+   railway up
+   ```
 
-**Important Notes for Vercel Deployment**:
+Alternatively, you can deploy directly from the Railway dashboard:
 
-Vercel has some limitations for serverless functions:
+1. Go to [railway.app](https://railway.app/) and log in
+2. Click "New Project" → "Deploy from GitHub repo"
+3. Connect your GitHub account and select your repository
+4. Railway will automatically detect the Dockerfile and deploy the application
 
-- **Execution Time**: Functions have a maximum execution time of 10 seconds in the free tier
-- **Memory**: Limited to 1GB RAM
-- **Selenium**: Running Selenium in serverless environments can be challenging
+**Benefits of Railway.app Deployment**:
 
-For better performance, consider using a dedicated server or a service like AWS Lambda with larger timeout settings.
+- **Generous Free Tier**: $5 credit per month
+- **No Strict Timeouts**: Unlike Vercel's 10-second limit
+- **Sufficient Memory**: Up to 512MB RAM in free tier
+- **Container Support**: Perfect for Selenium applications
+- **Easy Setup**: Simple GitHub integration
 
 ### Deployment on Render
 
-This application is also configured for deployment on Render.com:
+This application can also be deployed on Render.com:
 
 1. Fork or clone this repository
 2. Connect your GitHub account to Render
@@ -55,6 +70,14 @@ This application is also configured for deployment on Render.com:
 7. Click "Create Web Service"
 
 Render will automatically detect the Dockerfile and deploy the application.
+
+### Deployment on Vercel
+
+Vercel deployment is possible but not recommended for this application due to limitations:
+
+- **Execution Time**: Functions have a maximum execution time of 10 seconds in the free tier
+- **Memory**: Limited to 1GB RAM
+- **Selenium**: Running Selenium in serverless environments is challenging
 
 ## Local Development
 
@@ -85,11 +108,15 @@ Render will automatically detect the Dockerfile and deploy the application.
 
 4. Run the application:
    ```
-   # For Vercel local development
+   # Run directly
    python api/index.py
 
-   # OR for traditional Flask development
+   # OR using Flask
    flask run
+
+   # OR using Docker
+   docker build -t attendance-calculator .
+   docker run -p 8080:8080 attendance-calculator
    ```
 
 5. Open your browser and navigate to `http://localhost:5000`
