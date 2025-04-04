@@ -23,31 +23,9 @@ def is_vercel_env():
     """Check if we're running on Vercel."""
     return 'VERCEL' in os.environ
 
-def get_sample_data():
-    """Generate sample attendance data for Vercel environment."""
-    return {
-        'courses': [
-            'Computer Networks',
-            'Web Technologies',
-            'Software Engineering',
-            'Database Management Systems',
-            'Operating Systems',
-            'Technical Training'
-        ],
-        'percentages': [85.5, 92.0, 78.3, 88.7, 81.2, 95.0],
-        'attendance': 86.78
-    }
-
 def create_driver():
-    """Create a headless Chrome driver with optimized settings for Vercel."""
+    """Create a headless Chrome driver with optimized settings."""
     try:
-        # Check if we're running on Vercel
-        if is_vercel_env():
-            print("Running on Vercel environment")
-            # On Vercel, we need to handle Chrome differently
-            # This is a placeholder for Vercel-specific configuration
-            # In practice, Selenium might not work well on Vercel's serverless environment
-
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
         options.add_argument("--disable-gpu")
@@ -193,11 +171,6 @@ def attendance():
 
     # Handle POST requests
     try:
-        # Check if we're running on Vercel
-        if is_vercel_env():
-            print("Running on Vercel, returning sample data")
-            return jsonify(get_sample_data())
-
         # Try to get data from different sources
         username = None
         password = None
@@ -233,10 +206,6 @@ def attendance():
     except Exception as e:
         print(f"Error processing request: {str(e)}")
         traceback.print_exc()
-        # If we're on Vercel, return sample data as fallback
-        if is_vercel_env():
-            print("Error on Vercel, returning sample data as fallback")
-            return jsonify(get_sample_data())
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 if __name__ == '__main__':
