@@ -48,9 +48,11 @@ RUN apt-get update && apt-get install -y wget gnupg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver using a fixed version that's compatible with Chrome
-RUN apt-get update && apt-get install -y curl unzip \
-    && CHROMEDRIVER_VERSION=114.0.5735.90 \
+# Install ChromeDriver dynamically based on the installed Chrome version
+RUN apt-get update && apt-get install -y curl unzip jq \
+    && CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d. -f1) \
+    && CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}") \
+    && echo "Chrome version: $CHROME_VERSION, ChromeDriver version: $CHROMEDRIVER_VERSION" \
     && curl -sS -o /tmp/chromedriver_linux64.zip https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip \
     && unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin/ \
     && rm /tmp/chromedriver_linux64.zip \

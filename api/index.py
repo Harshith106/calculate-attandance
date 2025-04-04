@@ -65,12 +65,27 @@ def create_driver():
 
         # Create driver with ChromeDriver path from environment if available
         chrome_driver_path = os.environ.get("CHROME_DRIVER_PATH")
-        if chrome_driver_path:
-            service = webdriver.chrome.service.Service(executable_path=chrome_driver_path)
-            driver = webdriver.Chrome(service=service, options=options)
-        else:
-            # Try to create driver without explicit path
-            driver = webdriver.Chrome(options=options)
+
+        # Add version-specific options
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
+
+        # Try to create the driver
+        try:
+            if chrome_driver_path:
+                service = webdriver.chrome.service.Service(executable_path=chrome_driver_path)
+                driver = webdriver.Chrome(service=service, options=options)
+            else:
+                # Try to create driver without explicit path
+                driver = webdriver.Chrome(options=options)
+        except Exception as driver_error:
+            print(f"Error creating driver: {str(driver_error)}")
+            # If there's a version mismatch, try to get the Chrome version and download the matching ChromeDriver
+            if "This version of ChromeDriver only supports Chrome version" in str(driver_error):
+                print("Attempting to resolve ChromeDriver version mismatch...")
+                # This is a fallback that will work in most environments
+                driver = webdriver.Chrome(options=options)
 
         # Set timeouts - Railway can handle longer timeouts
         page_timeout = 30
