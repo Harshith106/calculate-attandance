@@ -4,6 +4,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import concurrent.futures
 import atexit
 import os
@@ -63,29 +65,35 @@ def create_driver():
         if chrome_binary:
             options.binary_location = chrome_binary
 
-        # Create driver with ChromeDriver path from environment if available
-        chrome_driver_path = os.environ.get("CHROME_DRIVER_PATH")
-
         # Add version-specific options
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
 
-        # Try to create the driver
+        # Try to create the driver using webdriver-manager
         try:
-            if chrome_driver_path:
-                service = webdriver.chrome.service.Service(executable_path=chrome_driver_path)
-                driver = webdriver.Chrome(service=service, options=options)
-            else:
-                # Try to create driver without explicit path
-                driver = webdriver.Chrome(options=options)
+            # Use webdriver-manager to automatically download and manage ChromeDriver
+            print("Using webdriver-manager to install ChromeDriver")
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+            print("ChromeDriver successfully installed and initialized")
         except Exception as driver_error:
             print(f"Error creating driver: {str(driver_error)}")
-            # If there's a version mismatch, try to get the Chrome version and download the matching ChromeDriver
-            if "This version of ChromeDriver only supports Chrome version" in str(driver_error):
-                print("Attempting to resolve ChromeDriver version mismatch...")
-                # This is a fallback that will work in most environments
-                driver = webdriver.Chrome(options=options)
+            traceback.print_exc()
+
+            # Try alternative method if webdriver-manager fails
+            try:
+                print("Trying alternative method to create Chrome driver")
+                chrome_driver_path = os.environ.get("CHROME_DRIVER_PATH")
+                if chrome_driver_path:
+                    service = Service(executable_path=chrome_driver_path)
+                    driver = webdriver.Chrome(service=service, options=options)
+                else:
+                    driver = webdriver.Chrome(options=options)
+            except Exception as alt_error:
+                print(f"Alternative method also failed: {str(alt_error)}")
+                traceback.print_exc()
+                raise
 
         # Set timeouts - Railway can handle longer timeouts
         page_timeout = 30
