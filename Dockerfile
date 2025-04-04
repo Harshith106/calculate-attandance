@@ -40,21 +40,23 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Chrome
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
+RUN apt-get update && apt-get install -y wget gnupg \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1) \
-    && CHROMEDRIVER_VERSION=$(wget -q -O - "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") \
-    && wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" \
-    && unzip chromedriver_linux64.zip \
-    && mv chromedriver /usr/local/bin/chromedriver \
+# Install ChromeDriver using a fixed version that's compatible with Chrome
+RUN apt-get update && apt-get install -y curl unzip \
+    && CHROMEDRIVER_VERSION=114.0.5735.90 \
+    && curl -sS -o /tmp/chromedriver_linux64.zip https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip \
+    && unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin/ \
+    && rm /tmp/chromedriver_linux64.zip \
     && chmod +x /usr/local/bin/chromedriver \
-    && rm chromedriver_linux64.zip
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set up working directory
 WORKDIR /app
@@ -69,5 +71,5 @@ COPY . .
 # Expose the port
 EXPOSE $PORT
 
-# Run the application
-CMD ["python", "api/index.py"]
+# Run the application with Gunicorn for better performance
+CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--chdir", "api", "index:app"]
