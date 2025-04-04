@@ -39,6 +39,25 @@ def create_driver():
         options.add_argument("--disable-application-cache")
         options.add_argument("--js-flags=--max_old_space_size=128")
 
+        # Additional optimizations for Vercel
+        if is_vercel_env():
+            print("Adding Vercel-specific Chrome options")
+            options.add_argument("--disable-software-rasterizer")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--disable-setuid-sandbox")
+            options.add_argument("--disable-accelerated-2d-canvas")
+            options.add_argument("--disable-accelerated-jpeg-decoding")
+            options.add_argument("--disable-accelerated-mjpeg-decode")
+            options.add_argument("--disable-accelerated-video-decode")
+            options.add_argument("--disable-gpu-compositing")
+            options.add_argument("--disable-gpu-memory-buffer-video-frames")
+            options.add_argument("--disable-gpu-rasterization")
+            options.add_argument("--disable-gpu-vsync")
+            options.add_argument("--disable-webgl")
+            options.add_argument("--ignore-certificate-errors")
+            options.add_argument("--disable-web-security")
+            options.add_argument("--disable-features=IsolateOrigins,site-per-process")
+
         # Set Chrome binary location if specified in environment
         chrome_binary = os.environ.get("CHROME_BINARY_PATH")
         if chrome_binary:
@@ -53,9 +72,13 @@ def create_driver():
             # Try to create driver without explicit path
             driver = webdriver.Chrome(options=options)
 
-        # Set timeouts
-        driver.set_page_load_timeout(30)
-        driver.set_script_timeout(30)
+        # Set timeouts - shorter for Vercel
+        page_timeout = 10 if is_vercel_env() else 30
+        script_timeout = 10 if is_vercel_env() else 30
+
+        print(f"Setting page_timeout={page_timeout}, script_timeout={script_timeout}")
+        driver.set_page_load_timeout(page_timeout)
+        driver.set_script_timeout(script_timeout)
         return driver
     except Exception as e:
         print(f"Error creating Chrome driver: {str(e)}")
@@ -64,31 +87,37 @@ def create_driver():
 
 def scrape_data(driver, username, password):
     try:
+        # Reduce all timeouts for Vercel environment
+        wait_time = 5 if is_vercel_env() else 30
+        sleep_time = 3 if is_vercel_env() else 10
+
+        print(f"Using wait_time={wait_time}, sleep_time={sleep_time}")
+
         driver.get("http://mitsims.in/")
 
-        StudentLink = WebDriverWait(driver, 30).until(
+        StudentLink = WebDriverWait(driver, wait_time).until(
             EC.element_to_be_clickable((By.XPATH, "//nav//a[@id='studentLink']"))
         )
         StudentLink.click()
 
-        userEle = WebDriverWait(driver, 30).until(
+        userEle = WebDriverWait(driver, wait_time).until(
             EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputStuId']"))
         )
         userEle.clear()
         userEle.send_keys(username)
 
-        passEle = WebDriverWait(driver, 30).until(
+        passEle = WebDriverWait(driver, wait_time).until(
             EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//input[@id='inputPassword']"))
         )
         passEle.clear()
         passEle.send_keys(password)
 
-        login_button = WebDriverWait(driver, 30).until(
+        login_button = WebDriverWait(driver, wait_time).until(
             EC.element_to_be_clickable((By.XPATH, "//form[@id='studentForm']//button[@id='studentSubmitButton']"))
         )
         login_button.click()
 
-        time.sleep(10)
+        time.sleep(sleep_time)
 
         attendance_percentage_xpath = "//fieldset[contains(@class, 'bottom-border') and not(contains(@class, 'bottom-border-header'))]//div[contains(@class,'x-column-inner')]/div[contains(@class,'x-field')][5]//span"
         course_name_xpath = "//fieldset[contains(@class, 'bottom-border') and not(contains(@class, 'bottom-border-header'))]//div[contains(@class,'x-column-inner')]/div[contains(@class,'x-field')][2]//span"
@@ -96,7 +125,7 @@ def scrape_data(driver, username, password):
         attendance_percentages = []
         course_names = []
 
-        wait = WebDriverWait(driver, 30)
+        wait = WebDriverWait(driver, wait_time)
         percentage_elements = wait.until(
             EC.presence_of_all_elements_located((By.XPATH, attendance_percentage_xpath))
         )
@@ -140,9 +169,14 @@ def get_attendance_data(username, password):
     future = executor.submit(lambda: scrape_data(create_driver(), username, password))
 
     try:
-        result = future.result(timeout=45)
+        # Use a shorter timeout for Vercel
+        timeout = 9 if is_vercel_env() else 45  # Vercel has a 10 second limit on free tier
+        print(f"Using timeout={timeout} seconds")
+
+        result = future.result(timeout=timeout)
         return result
     except concurrent.futures.TimeoutError:
+        print(f"Scraping operation timed out after {timeout} seconds")
         future.cancel()
         import gc
         gc.collect()
